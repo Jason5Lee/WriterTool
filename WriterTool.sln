@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jason5Lee.WriterTool.Core", "Core\Core.csproj", "{282ABBD8-B648-4766-95C4-9A56B787AF76}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jason5Lee.WriterTool.Cli", "Cli\Cli.csproj", "{D28F2B50-E7D9-4F2B-BC95-22BEC5A56782}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{282ABBD8-B648-4766-95C4-9A56B787AF76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{282ABBD8-B648-4766-95C4-9A56B787AF76}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{282ABBD8-B648-4766-95C4-9A56B787AF76}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{282ABBD8-B648-4766-95C4-9A56B787AF76}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D28F2B50-E7D9-4F2B-BC95-22BEC5A56782}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D28F2B50-E7D9-4F2B-BC95-22BEC5A56782}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D28F2B50-E7D9-4F2B-BC95-22BEC5A56782}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D28F2B50-E7D9-4F2B-BC95-22BEC5A56782}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
