@@ -1,7 +1,7 @@
-﻿namespace Jason5Lee.WriterTool.Cli;
+namespace Jason5Lee.WriterTool.Core.Config;
 
 using CsToml;
-using CsToml.Error;
+using CsToml.Values;
 
 [TomlSerializedObject]
 public partial class Config
@@ -44,6 +44,9 @@ public partial class WriterConfig
 
     [TomlValueOnSerialized(aliasName: "prompt")]
     public WriterPromptConfig? Prompt { get; set; }
+
+    [TomlValueOnSerialized(aliasName: "retry")]
+    public RetryConfig? Retry { get; set; }
 }
 
 [TomlSerializedObject]
@@ -69,6 +72,9 @@ public partial class RejectDetectionConfig
 
     [TomlValueOnSerialized(aliasName: "custom-prompt")]
     public RejectDetectionCustomPromptConfig? CustomPrompt { get; set; }
+
+    [TomlValueOnSerialized(aliasName: "retry")]
+    public RetryConfig? Retry { get; set; }
 }
 
 [TomlSerializedObject]
@@ -113,6 +119,9 @@ public partial class TranslationConfig
 
     [TomlValueOnSerialized(aliasName: "custom-prompt")]
     public CustomTranslationPromptConfig? CustomPrompt { get; set; }
+
+    [TomlValueOnSerialized(aliasName: "retry")]
+    public RetryConfig? Retry { get; set; }
 }
 
 [TomlSerializedObject]
@@ -142,4 +151,19 @@ public partial class CustomTranslationPromptConfig
 
     [TomlValueOnSerialized(aliasName: "prompt-after")]
     public string? PromptAfter { get; set; }
+}
+
+[TomlSerializedObject]
+public partial class RetryConfig
+{
+    [TomlValueOnSerialized(aliasName: "enable")]
+    public bool Enable { get; set; }
+
+    [TomlValueOnSerialized(aliasName: "duration")]
+    public object? Duration { get; set; }
+
+    [TomlValueOnSerialized(aliasName: "max-retries")]
+    public int? MaxRetries { get; set; }
+
+    public static string BackoffDuration { get; } = "backoff";
 }

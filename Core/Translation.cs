@@ -3,10 +3,13 @@
 namespace Jason5Lee.WriterTool.Core;
 
 public record class Translation(
+    ILogger Logger,
     AIActor AIActor,
+    IRetrier Retrier,
     PromptSurrounding PromptSurrounding,
     int MaxCharactersPerSegment, // TODO: doc comment: if you don't want limit, pass int.MaxValue
-    string LinesMismatchedDelimiter
+    bool SkipOriginal,
+    string LinesMismatchedDelimiter // TODO: doc comment: won't use if KeepOriginal is false
 )
 {
     public static string TranslatedTagBegin => "<translated>";
@@ -41,7 +44,7 @@ Please output the translated {language} text within <translated></translated>, e
                 length += line.Length;
             }
             var prompt = PromptSurrounding.CreatePrompt(lines.AsSpan()[start..end]);
-            var translated = await Backoff.RetryUntilSuccessAsync("translation", async () =>
+            var translated = await Retrier.Run(Logger, "translation", async () =>
             {
                 var translateResponse = await AIActor.GetCompletionAsync(httpClient, null, prompt);
                 var startIndex = translateResponse.IndexOf(TranslatedTagBegin);
@@ -60,44 +63,56 @@ Please output the translated {language} text within <translated></translated>, e
                 return translateResponse[startIndex..endIndex];
             });
 
-            var translatedLines = translated.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries);
-            var final = new StringBuilder();
-            if (translatedLines.Length != end - start)
+            if (SkipOriginal)
             {
-                final.AppendLine(LinesMismatchedDelimiter);
-                for (int i = start; i < end; ++i)
-                {
-                    final.AppendLine(lines[i]);
-                    final.AppendLine();
-                }
-
-                if (translatedLines.Length > 0)
-                {
-                    final.AppendLine(translatedLines[0]);
-                    for (int i = 1; i < translatedLines.Length; ++i)
-                    {
-                        final.AppendLine();
-                        final.AppendLine(translatedLines[i]);
-                    }
-                }
-
-                final.AppendLine(LinesMismatchedDelimiter);
+                yield return translated;
             }
             else
             {
-                for (int i = 0; i < translatedLines.Length; ++i)
+                yield return GetFinalKeepOriginal(lines.AsSpan()[start..end], translated, LinesMismatchedDelimiter);
+            }
+        }
+    }
+
+    private static string GetFinalKeepOriginal(ReadOnlySpan<string> lines, string translated, string linesMismatchedDelimiter)
+    {
+        var translatedLines = translated.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries);
+        var final = new StringBuilder();
+        if (translatedLines.Length != lines.Length)
+        {
+            final.AppendLine(linesMismatchedDelimiter);
+            for (int i = 0; i < lines.Length; ++i)
+            {
+                final.AppendLine(lines[i]);
+                final.AppendLine();
+            }
+
+            if (translatedLines.Length > 0)
+            {
+                final.AppendLine(translatedLines[0]);
+                for (int i = 1; i < translatedLines.Length; ++i)
                 {
-                    if (i > 0)
-                    {
-                        final.AppendLine();
-                    }
-                    final.AppendLine(lines[start + i]);
                     final.AppendLine();
                     final.AppendLine(translatedLines[i]);
                 }
             }
 
-            yield return final.ToString();
+            final.AppendLine(linesMismatchedDelimiter);
         }
+        else
+        {
+            for (int i = 0; i < translatedLines.Length; ++i)
+            {
+                if (i > 0)
+                {
+                    final.AppendLine();
+                }
+                final.AppendLine(lines[i]);
+                final.AppendLine();
+                final.AppendLine(translatedLines[i]);
+            }
+        }
+
+        return final.ToString();
     }
 }

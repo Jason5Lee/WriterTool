@@ -5,14 +5,14 @@ using Jason5Lee.WriterTool.Cli;
 using Jason5Lee.WriterTool.Core;
 
 var rootCommand = new RootCommand("Writer tool for generating content using AI models");
-
+var writeCommand = new Command("write", "Write content");
 var configOption = new Option<string>("--config")
 {
     Required = true,
     Description = "Path to config file"
 };
 configOption.Aliases.Add("-c");
-rootCommand.Options.Add(configOption);
+writeCommand.Options.Add(configOption);
 
 var outputOption = new Option<string>("--output")
 {
@@ -20,14 +20,30 @@ var outputOption = new Option<string>("--output")
     Description = "Path to output file"
 };
 outputOption.Aliases.Add("-o");
-rootCommand.Options.Add(outputOption);
+writeCommand.Options.Add(outputOption);
 
-var translatedOption = new Option<string?>("--translated")
+var writerTranslatedOption = new Option<string?>("--translated")
 {
     Description = "Path to translation output file"
 };
-translatedOption.Aliases.Add("-ot");
-rootCommand.Options.Add(translatedOption);
+writerTranslatedOption.Aliases.Add("-ot");
+writeCommand.Options.Add(writerTranslatedOption);
+
+rootCommand.Add(writeCommand);
+
+var translateCommand = new Command("translate", "Translate content");
+translateCommand.Options.Add(configOption);
+
+var translationInputOption = new Option<string?>("--input")
+{
+    Required = true,
+    Description = "Path to translation input file"
+};
+translationInputOption.Aliases.Add("-i");
+translateCommand.Options.Add(translationInputOption);
+
+translateCommand.Options.Add(outputOption);
+rootCommand.Add(translateCommand);
 
 var parseResult = rootCommand.Parse(args);
 if (parseResult.Errors.Count > 0)
@@ -40,144 +56,80 @@ if (parseResult.Errors.Count > 0)
     return 1;
 }
 
-await RunWriter(parseResult.GetValue(configOption), parseResult.GetValue(outputOption), parseResult.GetValue(translatedOption));
-return 0;
-
-static async Task<int> RunWriter(string? configPath, string? outputPath, string? translatedPath)
+if (parseResult.CommandResult.Command == writeCommand)
 {
+    var configPath = parseResult.GetValue(configOption);
     if (string.IsNullOrEmpty(configPath))
     {
-        Console.WriteLine("Error: Config file not specified");
+        Console.Error.WriteLine("Error: Config file not specified");
         return 1;
     }
 
+    var config = await CommandEntry.GetConfig(File.OpenRead(configPath));
+
+    var outputPath = parseResult.GetValue(outputOption);
     if (string.IsNullOrEmpty(outputPath))
     {
-        Console.WriteLine("Error: Output path not specified");
+        Console.Error.WriteLine("Error: Output path not specified");
         return 1;
     }
 
-    if (!File.Exists(configPath))
+    var translatedPath = parseResult.GetValue(writerTranslatedOption);
+    Func<HttpClient, string, IAsyncEnumerable<string>>? translate = null;
+    if (!string.IsNullOrEmpty(translatedPath))
     {
-        Console.WriteLine($"Error: Config file not found at {configPath}");
-        return 1;
+        translate = CommandEntry.GetTranslation(CliLogger.Instance, config);
     }
 
-    var config = CsTomlSerializer.Deserialize<Config>(new BufferedStream(File.OpenRead(configPath)));
-    if (config.Writer == null)
-    {
-        Console.WriteLine("Error: Writer section is missing from the config file");
-        return 1;
-    }
-
-    if (config.Writer.Prompt == null)
-    {
-        Console.WriteLine("Error: Writer instruction is missing from the config file");
-        return 1;
-    }
-
-    if (string.IsNullOrEmpty(config.Writer.Prompt.Instruction))
-    {
-        Console.WriteLine("Error: Writer prompt instruction is missing from the config file");
-        return 1;
-    }
-
-    var writerActor = Utils.CreateAIActor("writer", config.Writer.ApiUrl, config.Writer.ApiKey, config.Writer.Model);
-
-    RejectionDetection? rejectionDetection = null;
-    if (config.RejectDetection?.Enable ?? false)
-    {
-        if (config.RejectDetection.Threshold == null)
-        {
-            throw new ArgumentException("`reject-detection` must have a threshold specified");
-        }
-        PromptSurrounding promptSurrounding = RejectionDetection.DefaultPromptSurrounding;
-        if (config.RejectDetection.CustomPrompt?.Enable ?? false)
-        {
-            if (string.IsNullOrEmpty(config.RejectDetection.CustomPrompt.PromptBefore))
-            {
-                throw new ArgumentException("`reject-detection.custom-prompt` must have a prompt-before specified");
-            }
-            if (string.IsNullOrEmpty(config.RejectDetection.CustomPrompt.PromptAfter))
-            {
-                throw new ArgumentException("`reject-detection.custom-prompt` must have a prompt-after specified");
-            }
-            promptSurrounding = new PromptSurrounding(config.RejectDetection.CustomPrompt.PromptBefore, config.RejectDetection.CustomPrompt.PromptAfter);
-        }
-
-        var rejectDetectionActor = Utils.CreateAIActor("reject-detection", config.RejectDetection.ApiUrl, config.RejectDetection.ApiKey, config.RejectDetection.Model);
-        rejectionDetection = new RejectionDetection(rejectDetectionActor, promptSurrounding, config.RejectDetection.SampleLength ?? int.MaxValue, config.RejectDetection.Threshold.Value);
-    }
-
-    Translation? translation = null;
-    if (config.Translation?.Enable ?? false && translatedPath != null)
-    {
-        PromptSurrounding promptSurrounding;
-        if (string.IsNullOrEmpty(config.Translation.LinesMismatchedDelimiter))
-        {
-            throw new ArgumentException("`translation` section of the config must have a lines-mismatched-delimiter specified");
-        }
-
-        if (config.Translation.DefaultPrompt?.Enable ?? false)
-        {
-            if (config.Translation.CustomPrompt?.Enable ?? false)
-            {
-                throw new ArgumentException("`translation` section of the config cannot have both `default-prompt` and `custom-prompt` enabled");
-            }
-            if (string.IsNullOrEmpty(config.Translation.DefaultPrompt.Language))
-            {
-                throw new ArgumentException("`translation.default-prompt` must have a language specified");
-            }
-            promptSurrounding = Translation.DefaultPromptSurrounding(config.Translation.DefaultPrompt.Language, config.Writer.Prompt.Instruction);
-        }
-        else
-        {
-            if (config.Translation.CustomPrompt == null)
-            {
-                throw new ArgumentException("`translation` section of the config must have either `default-prompt` or `custom-prompt` enabled");
-            }
-            if (string.IsNullOrEmpty(config.Translation.CustomPrompt.PromptBefore))
-            {
-                throw new ArgumentException("`translation.custom-prompt` must have a prompt-before specified");
-            }
-            if (string.IsNullOrEmpty(config.Translation.CustomPrompt.PromptAfter))
-            {
-                throw new ArgumentException("`translation.custom-prompt` must have a prompt-after specified");
-            }
-
-            var promptBefore = new StringBuilder();
-            if (config.Translation.CustomPrompt.HasInstruction)
-            {
-                if (string.IsNullOrEmpty(config.Translation.CustomPrompt.PromptBeforeInstruction))
-                {
-                    throw new ArgumentException("`translation.custom-prompt` must have a prompt-before-instruction specified when `has-instruction` is true");
-                }
-
-                promptBefore.Append(config.Translation.CustomPrompt.PromptBeforeInstruction);
-                promptBefore.Append(config.Writer.Prompt.Instruction);
-            }
-
-            promptBefore.Append(config.Translation.CustomPrompt.PromptBefore);
-            promptBefore.AppendLine(config.Translation.CustomPrompt.PromptAfter);
-            promptSurrounding = new PromptSurrounding(config.Translation.CustomPrompt.PromptBefore, config.Translation.CustomPrompt.PromptAfter);
-        }
-
-        var translationActor = Utils.CreateAIActor("translation", config.Translation.ApiUrl, config.Translation.ApiKey, config.Translation.Model);
-        translation = new Translation(translationActor, promptSurrounding, config.Translation.MaxCharactersPerSegment ?? int.MaxValue, config.Translation.LinesMismatchedDelimiter);
-    }
-
-    using var httpClient = new HttpClient();
-    var content = await new Writing(writerActor, rejectionDetection).Invoke(httpClient, config.Writer.Prompt.System, config.Writer.Prompt.Instruction + (config.Writer.Prompt.Requirement ?? ""));
-
+    var content = await CommandEntry.RunWriter(CliLogger.Instance, config);
     await File.WriteAllTextAsync(outputPath, content);
-    if (translation != null && translatedPath != null)
+    if (translate != null && translatedPath != null)
     {
         using var translatedStream = new StreamWriter(translatedPath);
-        await foreach (var translatedSegment in translation.Invoke(httpClient, content))
+        using var httpClient = new HttpClient();
+        await foreach (var translatedSegment in translate(httpClient, content))
         {
             await translatedStream.WriteLineAsync(translatedSegment);
         }
     }
-
-    return 0;
 }
+else if (parseResult.CommandResult.Command == translateCommand)
+{
+    var configPath = parseResult.GetValue(configOption);
+    if (string.IsNullOrEmpty(configPath))
+    {
+        Console.Error.WriteLine("Error: Config file not specified");
+        return 1;
+    }
+
+    var config = await CommandEntry.GetConfig(File.OpenRead(configPath));
+    var inputPath = parseResult.GetValue(translationInputOption);
+    if (string.IsNullOrEmpty(inputPath))
+    {
+        Console.Error.WriteLine("Error: Input path not specified");
+        return 1;
+    }
+
+    var outputPath = parseResult.GetValue(outputOption);
+    if (string.IsNullOrEmpty(outputPath))
+    {
+        Console.Error.WriteLine("Error: Output path not specified");
+        return 1;
+    }
+
+    var input = await File.ReadAllTextAsync(inputPath);
+    var translate = CommandEntry.GetTranslation(CliLogger.Instance, config);
+    using var translatedStream = new StreamWriter(outputPath);
+    using var httpClient = new HttpClient();
+    await foreach (var translatedSegment in translate(httpClient, input))
+    {
+        await translatedStream.WriteLineAsync(translatedSegment);
+    }
+}
+else
+{
+    Console.Error.WriteLine("Invalid command");
+    return 1;
+}
+
+return 0;

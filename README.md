@@ -13,4 +13,3 @@ dotnet run --project Cli/WriterTool.Cli.csproj -- -c config.toml -o output.txt -
 ## TODO
 
 - [ ] Publish NativeAOT Executable
-- [ ] SkipOriginal on translation

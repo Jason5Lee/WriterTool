@@ -1,7 +1,9 @@
 namespace Jason5Lee.WriterTool.Core;
 
 public record class RejectionDetection(
+    ILogger Logger,
     AIActor AIActor,
+    IRetrier Retrier,
     PromptSurrounding PromptSurrounding,
     int SampleLength,
     int Threshold
@@ -21,7 +23,7 @@ Please output the likelihood of the text being a rejection message (0 to 100) wi
     {
         var sample = SampleLength < content.Length ? content[..SampleLength] : content;
         var prompt = PromptSurrounding.CreatePrompt(sample);
-        var likelihood = await Backoff.RetryUntilSuccessAsync("rejection-detection", async () =>
+        var likelihood = await Retrier.Run(Logger, "rejection-detection", async () =>
         {
             var response = await AIActor.GetCompletionAsync(httpClient, null, prompt);
             var startIndex = response.IndexOf("<output>");

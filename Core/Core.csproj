@@ -7,4 +7,11 @@
     <RootNamespace>Jason5Lee.WriterTool.Core</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="CsToml" Version="1.7.2" />
+    <PackageReference Include="CsToml.Generator" Version="1.7.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
 </Project>
